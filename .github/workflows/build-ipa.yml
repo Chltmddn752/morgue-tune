@@ -128,6 +128,27 @@ jobs:
           git add -A && git commit -qm "ios ${{ github.run_number }}"
           git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" ci-logs-ios
 
+      - name: Add alternate app icons (Tune icons)
+        run: |
+          APP=build/ios/iphoneos/Runner.app
+          PLIST="$APP/Info.plist"
+          cp ios/AlternateIcons/*.png "$APP/"
+          /usr/libexec/PlistBuddy -c "Delete :CFBundleIcons:CFBundleAlternateIcons" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Delete :CFBundleIcons~ipad:CFBundleAlternateIcons" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleIcons:CFBundleAlternateIcons dict" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleIcons~ipad:CFBundleAlternateIcons dict" "$PLIST"
+          for NAME in TuneIconPink TuneIconDark TuneIconLight; do
+            for KEY in "CFBundleIcons" "CFBundleIcons~ipad"; do
+              /usr/libexec/PlistBuddy -c "Add :$KEY:CFBundleAlternateIcons:$NAME dict" "$PLIST"
+              /usr/libexec/PlistBuddy -c "Add :$KEY:CFBundleAlternateIcons:$NAME:CFBundleIconFiles array" "$PLIST"
+              /usr/libexec/PlistBuddy -c "Add :$KEY:CFBundleAlternateIcons:$NAME:CFBundleIconFiles:0 string $NAME" "$PLIST"
+              if [ "$KEY" = "CFBundleIcons~ipad" ]; then
+                /usr/libexec/PlistBuddy -c "Add :$KEY:CFBundleAlternateIcons:$NAME:CFBundleIconFiles:1 string ${NAME}83.5x83.5" "$PLIST"
+              fi
+            done
+          done
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIcons" "$PLIST"
+
       - name: Package IPA
         run: |
           mkdir -p Payload
