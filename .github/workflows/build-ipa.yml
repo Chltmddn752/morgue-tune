@@ -38,12 +38,18 @@ jobs:
           set -o pipefail
           flutter analyze --no-fatal-infos --no-fatal-warnings lib 2>&1 | tee analyze.log
 
-      - name: Save analysis summary
+      - name: Publish analysis log to ci-logs branch
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: analyze-log
-          path: analyze.log
+        run: |
+          mkdir -p /tmp/logs
+          { echo "run ${{ github.run_number }} ${{ github.sha }}"; grep -E "^ *(error|warning) " analyze.log | head -300; tail -5 analyze.log; } > /tmp/logs/analyze.txt || true
+          grep -E "^ *error " analyze.log | head -40 | while IFS= read -r line; do echo "::error::$line"; done || true
+          cd /tmp/logs
+          git init -q -b ci-logs
+          git config user.name github-actions
+          git config user.email actions@github.com
+          git add -A && git commit -qm "analyze ${{ github.run_number }}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" ci-logs
 
   build-ios:
     name: Unsigned iOS IPA
@@ -109,9 +115,18 @@ jobs:
           flutter build ios --release --no-codesign --target lib/main.dart \
             --dart-define="GIT_COMMIT=$(git rev-parse --short=8 HEAD)" 2>&1 | tee build.log
 
-      - name: Show errors
+      - name: Publish build errors to ci-logs-ios branch
         if: failure()
-        run: grep -E "error:|Error:" build.log | sort -u | head -200 || true
+        run: |
+          mkdir -p /tmp/logs
+          { echo "run ${{ github.run_number }} ${{ github.sha }}"; grep -E "error:|Error:|error \(|Failed" build.log | sort -u | head -300; tail -60 build.log; } > /tmp/logs/build.txt || true
+          grep -E "error:" build.log | sort -u | head -40 | while IFS= read -r line; do echo "::error::$line"; done || true
+          cd /tmp/logs
+          git init -q -b ci-logs-ios
+          git config user.name github-actions
+          git config user.email actions@github.com
+          git add -A && git commit -qm "ios ${{ github.run_number }}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" ci-logs-ios
 
       - name: Package IPA
         run: |
