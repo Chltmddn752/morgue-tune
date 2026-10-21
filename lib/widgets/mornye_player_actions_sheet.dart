@@ -51,10 +51,12 @@ class MornyePlayerActionsSheet extends ConsumerWidget {
     super.key,
     required this.mediaItem,
     this.sleepTimerSubtitle,
+    this.lyricsTimingSubtitle,
   });
 
   final MediaItem mediaItem;
   final String? sleepTimerSubtitle;
+  final String? lyricsTimingSubtitle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -121,6 +123,13 @@ class MornyePlayerActionsSheet extends ConsumerWidget {
               'shareLyrics',
               context.l10n.lyricsShareTitle,
               CupertinoIcons.quote_bubble,
+            ),
+            _action(
+              context,
+              'lyricsTiming',
+              context.l10n.lyricsTimingTitle,
+              CupertinoIcons.timer,
+              subtitle: lyricsTimingSubtitle,
             ),
           ],
           [

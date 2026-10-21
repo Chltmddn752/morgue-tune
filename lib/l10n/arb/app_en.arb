@@ -7587,5 +7587,15 @@
   "listeningPatternsMonthly": "Monthly favorites",
   "listeningPatternsMonthEmpty": "No listening",
   "librarySearchRecent": "Recent searches",
-  "librarySearchInitialsHint": "Korean initial consonants work too, e.g. ㄴㅈㅅ"
+  "librarySearchInitialsHint": "Korean initial consonants work too, e.g. ㄴㅈㅅ",
+  "lyricsEstimateWordTiming": "Estimate word timing",
+  "lyricsEstimateWordTimingSubtitle": "Sweep line-synced lyrics word by word, timed by each word's length",
+  "lyricsTimingTitle": "Lyrics timing",
+  "lyricsTimingValue": "{seconds} s",
+  "@lyricsTimingValue": {"placeholders": {"seconds": {"type": "String"}}},
+  "lyricsTimingEarlier": "Show lyrics 0.5 s earlier",
+  "lyricsTimingLater": "Show lyrics 0.5 s later",
+  "lyricsTimingReset": "Reset timing",
+  "appearanceAccentYellow": "Yellow",
+  "appearanceAccentMint": "Mint"
 }

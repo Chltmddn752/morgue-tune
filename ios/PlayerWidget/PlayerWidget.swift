@@ -61,6 +61,63 @@ struct PlayerWidgetView: View {
     }
 
     var body: some View {
+        switch family {
+        case .accessoryCircular, .accessoryRectangular, .accessoryInline:
+            lockScreen
+                .containerBackground(for: .widget) { Color.clear }
+                .widgetURL(URL(string: "mornye://player"))
+        default:
+            homeScreen
+        }
+    }
+
+    private var title: String { entry.state.title.isEmpty ? "Mornye" : entry.state.title }
+
+    /// Lock screen widgets (Tune feature): play/pause, now playing, inline title.
+    @ViewBuilder
+    private var lockScreen: some View {
+        switch family {
+        case .accessoryCircular:
+            ZStack {
+                AccessoryWidgetBackground()
+                Button(intent: PlayerControlIntent("toggle")) {
+                    Image(systemName: entry.state.playing ? "pause.fill" : "play.fill")
+                        .font(.system(size: 22, weight: .semibold))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(!entry.state.canPlay)
+                .accessibilityLabel(entry.state.playing ? "Pause" : "Play")
+            }
+        case .accessoryInline:
+            Label(entry.state.canPlay ? title : "Mornye", systemImage: entry.state.playing ? "waveform" : "music.note")
+        default:
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Label(entry.state.playing ? "Now Playing" : "Mornye", systemImage: entry.state.playing ? "waveform" : "music.note")
+                        .font(.caption2.weight(.semibold))
+                        .widgetAccentable()
+                    Text(title).font(.headline).lineLimit(1)
+                    if entry.configuration.showArtist, !entry.state.artist.isEmpty {
+                        Text(entry.state.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 0)
+                Button(intent: PlayerControlIntent("toggle")) {
+                    Image(systemName: entry.state.playing ? "pause.fill" : "play.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .frame(width: 32, height: 32)
+                        .background(.quaternary, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(!entry.state.canPlay)
+                .accessibilityLabel(entry.state.playing ? "Pause" : "Play")
+            }
+        }
+    }
+
+    private var homeScreen: some View {
         GeometryReader { bounds in
             if family == .systemMedium {
                 HStack(spacing: 16) {
@@ -173,7 +230,44 @@ private extension Image {
     }
 }
 
+/// Control Center and Lock Screen controls (iOS 18), from Tune.
+@available(iOS 18.0, *)
+struct MornyePlayPauseControl: ControlWidget {
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: "MornyePlayPause") {
+            ControlWidgetButton(action: MornyeTogglePlaybackIntent()) {
+                Label("Play or pause", systemImage: "playpause.fill")
+            }
+        }
+        .displayName("Mornye play/pause")
+        .description("Plays or pauses the current music.")
+    }
+}
+
+@available(iOS 18.0, *)
+struct MornyeShuffleControl: ControlWidget {
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: "MornyeShuffleLibrary") {
+            ControlWidgetButton(action: MornyeShuffleLibraryIntent()) {
+                Label("Shuffle library", systemImage: "shuffle")
+            }
+        }
+        .displayName("Mornye shuffle")
+        .description("Shuffles every song in your library.")
+    }
+}
+
 @main
+struct MornyeWidgets: WidgetBundle {
+    var body: some Widget {
+        MornyePlayerWidget()
+        if #available(iOS 18.0, *) {
+            MornyePlayPauseControl()
+            MornyeShuffleControl()
+        }
+    }
+}
+
 struct MornyePlayerWidget: Widget {
     var body: some WidgetConfiguration {
         AppIntentConfiguration(kind: PlayerWidgetState.kind, intent: PlayerWidgetConfiguration.self, provider: PlayerTimelineProvider()) { entry in
@@ -181,6 +275,6 @@ struct MornyePlayerWidget: Widget {
         }
         .configurationDisplayName("Mornye Player")
         .description("Your music, artwork, and playback controls.")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryCircular, .accessoryRectangular, .accessoryInline])
     }
 }

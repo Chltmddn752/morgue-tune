@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:mornye/controllers/player_metadata_controller.dart';
 import 'package:mornye/l10n/l10n.dart';
+import 'package:mornye/providers/lyrics_offset_provider.dart';
 import 'package:mornye/providers/download_history_provider.dart';
 import 'package:mornye/providers/library_collections_provider.dart';
 import 'package:mornye/providers/music_player_provider.dart';
@@ -994,6 +995,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
               context,
             ).formatTimeOfDay(TimeOfDay.fromDateTime(sleepTimerEndsAt)),
           );
+    final lyricsOffset = ref.read(currentLyricsOffsetProvider);
+    final lyricsTimingSubtitle = lyricsOffset == Duration.zero
+        ? null
+        : context.l10n.lyricsTimingValue(
+            _formatLyricsOffset(lyricsOffset),
+          );
     final action = context.isMornye
         ? await showMornyeContextMenu<String>(
             context: context,
@@ -1003,6 +1010,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
             builder: (_) => MornyePlayerActionsSheet(
               mediaItem: mediaItem,
               sleepTimerSubtitle: sleepTimerSubtitle,
+              lyricsTimingSubtitle: lyricsTimingSubtitle,
             ),
           )
         : await showAppBottomSheet<String>(
@@ -1030,6 +1038,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                     icon: Icons.format_quote_outlined,
                     title: sheetContext.l10n.lyricsShareTitle,
                     onTap: () => Navigator.of(sheetContext).pop('shareLyrics'),
+                  ),
+                  SettingsItem(
+                    icon: Icons.timer_outlined,
+                    title: sheetContext.l10n.lyricsTimingTitle,
+                    subtitle: lyricsTimingSubtitle,
+                    onTap: () => Navigator.of(sheetContext).pop('lyricsTiming'),
                   ),
                   SettingsItem(
                     icon: Icons.bedtime_outlined,
@@ -1103,6 +1117,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
       case 'sleepTimer':
         await _showSleepTimerSheet(context, controller, colorScheme);
         break;
+      case 'lyricsTiming':
+        await _showLyricsTimingSheet(context, mediaItem, colorScheme);
+        break;
       case 'equalizer':
         await Navigator.of(context).push<void>(
           MaterialPageRoute(builder: (_) => const EqualizerScreen()),
@@ -1111,6 +1128,60 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
       case 'external':
         await _openExternally(source);
         break;
+    }
+  }
+
+  static String _formatLyricsOffset(Duration offset) {
+    final seconds = offset.inMilliseconds / 1000;
+    return '${seconds > 0 ? '+' : ''}${seconds.toStringAsFixed(1)}';
+  }
+
+  /// Moves the current track's synced lyrics in half-second steps.
+  Future<void> _showLyricsTimingSheet(
+    BuildContext context,
+    MediaItem mediaItem,
+    ColorScheme colorScheme,
+  ) async {
+    final offset = ref.read(currentLyricsOffsetProvider);
+    final selection = await showAppBottomSheet<String>(
+      context: context,
+      useRootNavigator: true,
+      backgroundColor: colorScheme.surfaceContainerHigh,
+      title: context.l10n.lyricsTimingTitle,
+      subtitle: context.l10n.lyricsTimingValue(_formatLyricsOffset(offset)),
+      builder: (sheetContext) => Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: SettingsGroup(
+          children: [
+            SettingsItem(
+              icon: Icons.fast_rewind_outlined,
+              title: sheetContext.l10n.lyricsTimingEarlier,
+              onTap: () => Navigator.of(sheetContext).pop('earlier'),
+            ),
+            SettingsItem(
+              icon: Icons.fast_forward_outlined,
+              title: sheetContext.l10n.lyricsTimingLater,
+              onTap: () => Navigator.of(sheetContext).pop('later'),
+            ),
+            SettingsItem(
+              icon: Icons.restart_alt,
+              title: sheetContext.l10n.lyricsTimingReset,
+              showDivider: false,
+              onTap: () => Navigator.of(sheetContext).pop('reset'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (selection == null) return;
+    final offsets = ref.read(lyricsOffsetsProvider.notifier);
+    switch (selection) {
+      case 'earlier':
+        offsets.adjust(mediaItem.id, -kLyricsOffsetStep);
+      case 'later':
+        offsets.adjust(mediaItem.id, kLyricsOffsetStep);
+      case 'reset':
+        offsets.set(mediaItem.id, 0);
     }
   }
 

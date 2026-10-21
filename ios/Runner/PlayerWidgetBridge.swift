@@ -77,7 +77,7 @@ final class PlayerWidgetBridge {
     }
 
     func perform(_ command: String) async -> Bool {
-        guard ["play", "pause", "toggle", "previous", "next", "open"].contains(command) else { return false }
+        guard ["play", "pause", "toggle", "previous", "next", "open", "shuffle"].contains(command) else { return false }
         return await withCheckedContinuation { continuation in
             let id = UUID()
             pending.append((id, command, continuation))

@@ -6826,5 +6826,14 @@
   "listeningPatternsMonthly": "월별 최애 변천사",
   "listeningPatternsMonthEmpty": "기록 없음",
   "librarySearchRecent": "최근 검색",
-  "librarySearchInitialsHint": "초성으로도 찾을 수 있어요. 예: ㄴㅈㅅ"
+  "librarySearchInitialsHint": "초성으로도 찾을 수 있어요. 예: ㄴㅈㅅ",
+  "lyricsEstimateWordTiming": "단어별 효과 어림잡기",
+  "lyricsEstimateWordTimingSubtitle": "줄 단위 가사도 글자 수로 시간을 나눠 단어별로 채워요",
+  "lyricsTimingTitle": "가사 타이밍",
+  "lyricsTimingValue": "{seconds}초",
+  "lyricsTimingEarlier": "가사를 0.5초 빠르게",
+  "lyricsTimingLater": "가사를 0.5초 느리게",
+  "lyricsTimingReset": "타이밍 초기화",
+  "appearanceAccentYellow": "노랑",
+  "appearanceAccentMint": "민트"
 }

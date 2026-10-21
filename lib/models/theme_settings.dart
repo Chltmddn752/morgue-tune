@@ -24,7 +24,7 @@ double normalizeMornyeGlassClarity(num? value) =>
 
 enum AppThemeStyle { material, mornye }
 
-enum MornyeAccent { red, orange, green, teal, blue, purple, pink }
+enum MornyeAccent { red, orange, yellow, green, mint, teal, blue, purple, pink }
 
 MornyeAccent mornyeAccentFromString(String? value) =>
     MornyeAccent.values.firstWhere(

@@ -62,6 +62,7 @@ class PlayerWidgetService {
         'next',
         'previous',
         'open',
+        'shuffle',
       }.contains(command)) {
         return false;
       }

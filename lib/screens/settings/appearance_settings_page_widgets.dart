@@ -374,7 +374,9 @@ class _MornyeAccentPicker extends StatelessWidget {
     final labels = {
       MornyeAccent.red: l10n.appearanceAccentRed,
       MornyeAccent.orange: l10n.appearanceAccentOrange,
+      MornyeAccent.yellow: l10n.appearanceAccentYellow,
       MornyeAccent.green: l10n.appearanceAccentGreen,
+      MornyeAccent.mint: l10n.appearanceAccentMint,
       MornyeAccent.teal: l10n.appearanceAccentTeal,
       MornyeAccent.blue: l10n.appearanceAccentBlue,
       MornyeAccent.purple: l10n.appearanceAccentPurple,

@@ -26,6 +26,8 @@ import 'package:mornye/services/app_navigation_service.dart';
 import 'package:mornye/services/app_orientation.dart';
 import 'package:mornye/services/activity_attachment.dart';
 import 'package:mornye/services/app_crash_service.dart';
+import 'package:mornye/providers/music_player_provider.dart'
+    show MusicPlayerController;
 import 'package:mornye/services/music_player_service.dart';
 import 'package:mornye/services/player_widget_service.dart';
 import 'package:mornye/screens/now_playing_screen.dart';
@@ -153,6 +155,9 @@ void main() {
                   ),
                 );
               }
+            } else if (command == 'shuffle') {
+              // Siri, Shortcuts and Control Center: shuffle the whole library.
+              await MusicPlayerController().shuffleLibrary();
             } else {
               await PlayerWidgetService.control(handler, command);
             }
