@@ -137,6 +137,7 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/images/app_icons/
     - assets/fonts/Inter-LICENSE.txt
     - assets/licenses/usb.txt
     - assets/licenses/oboe.txt

@@ -66,6 +66,24 @@ import UniformTypeIdentifiers
             self?.activeWindow?.rootViewController
         }
         PlayerWidgetBridge.shared.attach(messenger)
+        // Alternate home screen icons (the Tune icons), chosen in Appearance.
+        let iconChannel = FlutterMethodChannel(name: "com.zarz.mornye/app_icon", binaryMessenger: messenger)
+        iconChannel.setMethodCallHandler { call, result in
+            switch call.method {
+            case "get":
+                result(UIApplication.shared.alternateIconName)
+            case "set":
+                guard UIApplication.shared.supportsAlternateIcons else {
+                    result(false)
+                    return
+                }
+                UIApplication.shared.setAlternateIconName(call.arguments as? String) { error in
+                    DispatchQueue.main.async { result(error == nil) }
+                }
+            default:
+                result(FlutterMethodNotImplemented)
+            }
+        }
         let channel = FlutterMethodChannel(
             name: CHANNEL,
             binaryMessenger: messenger

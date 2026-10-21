@@ -143,7 +143,7 @@ Color _heatColor(BuildContext context, int level) {
         ? MornyeTheme.controlFill(context)
         : colors.surfaceContainerHighest;
   }
-  return colors.primary.withValues(alpha: const [0, 0.3, 0.5, 0.75, 1][level]);
+  return colors.primary.withValues(alpha: const <double>[0, 0.3, 0.5, 0.75, 1][level]);
 }
 
 class _HeatLegend extends StatelessWidget {

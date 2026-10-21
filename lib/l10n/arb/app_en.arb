@@ -7597,5 +7597,10 @@
   "lyricsTimingLater": "Show lyrics 0.5 s later",
   "lyricsTimingReset": "Reset timing",
   "appearanceAccentYellow": "Yellow",
-  "appearanceAccentMint": "Mint"
+  "appearanceAccentMint": "Mint",
+  "appIconTitle": "App icon",
+  "appIconDefault": "Mornye",
+  "appIconTunePink": "Tune",
+  "appIconTuneDark": "Tune Dark",
+  "appIconTuneLight": "Tune Light"
 }

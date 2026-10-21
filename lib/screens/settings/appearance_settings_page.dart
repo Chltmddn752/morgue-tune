@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mornye/widgets/app_icon_setting.dart';
 import 'package:mornye/widgets/app_bottom_sheet.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mornye/l10n/l10n.dart';
@@ -102,6 +103,9 @@ class AppearanceSettingsPage extends ConsumerWidget {
                 child: _ThemePreviewCard(),
               ),
             ),
+
+            if (AppIconSetting.supported)
+              const SliverToBoxAdapter(child: AppIconSetting()),
 
             if (themeSettings.style == AppThemeStyle.mornye) ...[
               SliverToBoxAdapter(

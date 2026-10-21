@@ -6835,5 +6835,10 @@
   "lyricsTimingLater": "가사를 0.5초 느리게",
   "lyricsTimingReset": "타이밍 초기화",
   "appearanceAccentYellow": "노랑",
-  "appearanceAccentMint": "민트"
+  "appearanceAccentMint": "민트",
+  "appIconTitle": "앱 아이콘",
+  "appIconDefault": "기본",
+  "appIconTunePink": "Tune 핑크",
+  "appIconTuneDark": "Tune 다크",
+  "appIconTuneLight": "Tune 라이트"
 }
