@@ -38,7 +38,12 @@ class _AppIconSettingState extends State<AppIconSetting> {
   Future<void> _load() async {
     try {
       final name = await _channel.invokeMethod<String>('get');
-      if (mounted) setState(() => (_current, _loaded) = (name, true));
+      if (mounted) {
+        setState(() {
+          _current = name;
+          _loaded = true;
+        });
+      }
     } catch (_) {
       if (mounted) setState(() => _loaded = true);
     }
