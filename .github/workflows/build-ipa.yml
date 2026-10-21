@@ -1,0 +1,141 @@
+name: Build IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MORNYE_DISCORD_SDK: "0"
+
+jobs:
+  analyze:
+    name: Dart analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version-file: .fvmrc
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Analyze (errors only fail the build)
+        run: |
+          set -o pipefail
+          flutter analyze --no-fatal-infos --no-fatal-warnings lib 2>&1 | tee analyze.log
+
+      - name: Save analysis summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: analyze-log
+          path: analyze.log
+
+  build-ios:
+    name: Unsigned iOS IPA
+    needs: analyze
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 26
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE" ]; then XCODE=$(ls -d /Applications/Xcode*.app | sort -V | tail -1); fi
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      - name: Activate Rust toolchain
+        working-directory: rust_backend
+        run: rustup show
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            rust_backend/target
+          key: cargo-ios-${{ hashFiles('rust_backend/rust-toolchain.toml', 'rust_backend/Cargo.lock') }}
+
+      - name: Build Rust backend for iOS
+        run: bash scripts/build_ios.sh
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version-file: .fvmrc
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Normalize ffmpeg plugin shell scripts
+        run: |
+          find "$HOME/.pub-cache/hosted" -path "*ffmpeg_kit_flutter_new_audio*/scripts/*.sh" -type f -print0 |
+            while IFS= read -r -d '' f; do
+              perl -pi -e 's/\r$//' "$f"
+              chmod +x "$f"
+            done
+
+      - name: Generate app icons
+        run: dart run flutter_launcher_icons
+
+      - name: Install pods
+        working-directory: ios
+        run: pod install
+
+      - name: Build iOS (unsigned)
+        run: |
+          set -o pipefail
+          flutter build ios --release --no-codesign --target lib/main.dart \
+            --dart-define="GIT_COMMIT=$(git rev-parse --short=8 HEAD)" 2>&1 | tee build.log
+
+      - name: Show errors
+        if: failure()
+        run: grep -E "error:|Error:" build.log | sort -u | head -200 || true
+
+      - name: Package IPA
+        run: |
+          mkdir -p Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qry Mornye-Tune.ipa Payload
+          ls -lh Mornye-Tune.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mornye-Tune-ipa
+          path: Mornye-Tune.ipa
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-log
+          path: build.log
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Mornye + Tune build ${{ github.run_number }}
+          body: "Unsigned IPA. Install with SideStore. Commit: ${{ github.sha }}"
+          prerelease: true
+          files: Mornye-Tune.ipa
