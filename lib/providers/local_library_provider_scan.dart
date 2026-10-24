@@ -275,18 +275,6 @@ extension _LocalLibraryScan on LocalLibraryNotifier {
       if (!ref.mounted || _scanCancelRequested) return;
       final effectiveFolderPath = resolvedPath ?? folderPath;
 
-      if (Platform.isIOS && securityAccess != null) {
-        // Tracks that iCloud Drive or Google Drive keeps only in the cloud are
-        // downloaded first, so their tags can be read.
-        final downloaded = await PlatformBridge.prepareIosCloudFolder(
-          effectiveFolderPath,
-        );
-        if (downloaded > 0) {
-          _log.i('Downloaded $downloaded cloud-only tracks before scanning');
-        }
-        if (!ref.mounted || _scanCancelRequested) return;
-      }
-
       final isSaf = isContentUri(effectiveFolderPath);
 
       final useStreamingFullScan =

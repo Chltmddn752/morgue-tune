@@ -285,7 +285,6 @@ import UniformTypeIdentifiers
             "startBackgroundWork", "updateBackgroundWork", "stopBackgroundWork",
             "pickIosDirectory", "startAccessingIosBookmark", "stopAccessingIosBookmark", "downloadCoverToFile", "releaseMemory", "releaseMemoryUnderPressure",
             "setLibraryCoverCacheDir", "scanLibraryFolderToNDJSONFile", "scanLibraryFolderIncremental",
-            "prepareIosCloudFolder", "ensureIosFileDownloaded",
             "getLibraryScanProgress", "cancelLibraryScan", "pauseLibraryScan", "resumeLibraryScan",
             "parseCueSheet", "extractCoverToFile",
             "rewriteSplitArtistTags", "writeM4AFreeformTags", "ensureAC4Config", "writeAC4Metadata", "reEnrichFile",
@@ -618,26 +617,6 @@ import UniformTypeIdentifiers
             return nil
 
 
-        case "prepareIosCloudFolder":
-            guard
-                let args = call.arguments as? [String: Any],
-                let folderPath = args["folder_path"] as? String,
-                !folderPath.isEmpty
-            else {
-                throw invalidArgumentsError(call.method)
-            }
-            return CloudFiles.prepareFolder(URL(fileURLWithPath: folderPath, isDirectory: true))
-
-        case "ensureIosFileDownloaded":
-            guard
-                let args = call.arguments as? [String: Any],
-                let filePath = args["file_path"] as? String,
-                !filePath.isEmpty
-            else {
-                throw invalidArgumentsError(call.method)
-            }
-            return CloudFiles.ensureDownloaded(URL(fileURLWithPath: filePath))
-
         case "startAccessingIosBookmark":
             guard
                 let args = call.arguments as? [String: Any],
@@ -899,137 +878,5 @@ class SceneDelegate: FlutterSceneDelegate {
     override func sceneWillEnterForeground(_ scene: UIScene) {
         super.sceneWillEnterForeground(scene)
         appDelegate?.willEnterForeground()
-    }
-}
-
-// MARK: - Cloud files (iCloud Drive, Google Drive)
-
-/// A music folder picked from Files can live in the cloud. iCloud Drive may evict
-/// a downloaded track to save space and leave a hidden ".Song.flac.icloud"
-/// placeholder; Files providers such as Google Drive only fetch a file's
-/// content when it is first read. A library scan must keep such tracks, and
-/// playback or tag reading must wait until the content is on the device.
-///
-/// Every function here blocks, so call them off the main thread (the bridge
-/// runs OS methods on a background queue).
-enum CloudFiles {
-    private static let suffix = ".icloud"
-    private static let trackExtensions: Set<String> = [
-        "flac", "m4a", "mp4", "aac", "mp3", "opus", "ogg", "ape", "wv", "mpc",
-        "wav", "aiff", "aif", "dsf", "dff", "cue",
-    ]
-    private static let sidecarExtensions: Set<String> = ["lrc", "ttml"]
-
-    /// ".Song.flac.icloud" -> "Song.flac"
-    static func realName(ofPlaceholder name: String) -> String? {
-        guard name.hasPrefix("."), name.hasSuffix(suffix), name.count > suffix.count + 1 else { return nil }
-        return String(name.dropFirst().dropLast(suffix.count))
-    }
-
-    /// True when the file is not inside the app's own container.
-    static func isExternal(_ url: URL) -> Bool {
-        let home = URL(fileURLWithPath: NSHomeDirectory()).resolvingSymlinksInPath().path
-        return !url.resolvingSymlinksInPath().path.hasPrefix(home)
-    }
-
-    /// True when the content can be opened right now.
-    static func isDownloaded(_ url: URL) -> Bool {
-        guard FileManager.default.fileExists(atPath: url.path) else { return false }
-        if let values = try? url.resourceValues(forKeys: [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey]),
-           values.isUbiquitousItem == true, let status = values.ubiquitousItemDownloadingStatus {
-            return status == .current || status == .downloaded
-        }
-        return true
-    }
-
-    /// Waits until the file's content is on the device. Returns false on timeout.
-    @discardableResult
-    static func ensureDownloaded(_ url: URL, timeout: TimeInterval = 90) -> Bool {
-        guard isExternal(url) else { return true }
-        if isDownloaded(url) {
-            // A Files provider (Google Drive and the like) can show a file whose
-            // content is not there yet, so go through one coordinated read.
-            coordinatedRead(url)
-            return true
-        }
-        try? FileManager.default.startDownloadingUbiquitousItem(at: url)
-        coordinatedRead(url)
-        let deadline = Date().addingTimeInterval(timeout)
-        while !isDownloaded(url), Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.3)
-        }
-        return isDownloaded(url)
-    }
-
-    private static func coordinatedRead(_ url: URL) {
-        var error: NSError?
-        NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &error) { _ in }
-    }
-
-    /// Before a library scan: download tracks that have never been seen on this
-    /// device and exist only as a placeholder, so the scanner can read their tags.
-    /// Tracks the app has already seen stay evicted (the scanner keeps them in the
-    /// library without touching them). Returns how many tracks were downloaded.
-    static func prepareFolder(_ folder: URL, perFileTimeout: TimeInterval = 120) -> Int {
-        guard let enumerator = FileManager.default.enumerator(
-            at: folder, includingPropertiesForKeys: [.isDirectoryKey], options: []
-        ) else { return 0 }
-        var known = KnownCloudPaths.load()
-        var changed = false
-        var pending: [URL] = []
-        for case let file as URL in enumerator {
-            let name = file.lastPathComponent
-            if name.hasPrefix(".") {
-                if let real = realName(ofPlaceholder: name) {
-                    let ext = (real as NSString).pathExtension.lowercased()
-                    guard trackExtensions.contains(ext) || sidecarExtensions.contains(ext) else { continue }
-                    let realURL = file.deletingLastPathComponent().appendingPathComponent(real)
-                    if !known.contains(realURL.path) { pending.append(realURL) }
-                } else if (try? file.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
-                    enumerator.skipDescendants()
-                }
-                continue
-            }
-            // A track that is on the device now is remembered, so a later eviction
-            // is not mistaken for a new file that needs downloading again.
-            if trackExtensions.contains(file.pathExtension.lowercased()), known.insert(file.path).inserted {
-                changed = true
-            }
-        }
-        for url in pending { try? FileManager.default.startDownloadingUbiquitousItem(at: url) }
-        let deadline = Date().addingTimeInterval(20 * 60)
-        var downloaded = 0
-        for url in pending where Date() < deadline {
-            if ensureDownloaded(url, timeout: perFileTimeout) {
-                known.insert(url.path)
-                changed = true
-                downloaded += 1
-            }
-        }
-        if changed { KnownCloudPaths.save(known) }
-        return downloaded
-    }
-}
-
-/// Paths of cloud tracks the app has already seen, kept in Application Support.
-private enum KnownCloudPaths {
-    private static var fileURL: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("cloud_known_paths.json")
-    }
-
-    static func load() -> Set<String> {
-        guard let data = try? Data(contentsOf: fileURL),
-              let list = try? JSONDecoder().decode([String].self, from: data) else { return [] }
-        return Set(list)
-    }
-
-    static func save(_ paths: Set<String>) {
-        try? FileManager.default.createDirectory(
-            at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true
-        )
-        if let data = try? JSONEncoder().encode(Array(paths)) {
-            try? data.write(to: fileURL, options: .atomic)
-        }
     }
 }

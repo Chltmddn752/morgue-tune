@@ -293,24 +293,6 @@ String stripCueTrackSuffix(String path) {
   return path.replaceFirst(_cueTrackSuffix, '');
 }
 
-/// Where iCloud Drive leaves the hidden stub of a file it evicted from the
-/// device: `/dir/Song.flac` becomes `/dir/.Song.flac.icloud`.
-String iCloudPlaceholderPath(String path) {
-  final slash = path.lastIndexOf('/');
-  return '${path.substring(0, slash + 1)}.${path.substring(slash + 1)}.icloud';
-}
-
-/// Whether [path] is a cloud-only file: gone from the device but still listed
-/// in iCloud Drive. Such a file is not deleted, it is downloaded on demand.
-Future<bool> isICloudPlaceholder(String path) async {
-  if (!Platform.isIOS || path.isEmpty) return false;
-  try {
-    return await File(iCloudPlaceholderPath(path)).exists();
-  } catch (_) {
-    return false;
-  }
-}
-
 Future<bool> fileExists(String? path) async {
   if (path == null || path.isEmpty) return false;
   // Network identities are resolved by the built-in player, not File.exists.
@@ -319,7 +301,7 @@ Future<bool> fileExists(String? path) async {
   if (isContentUri(realPath)) {
     return PlatformBridge.safExists(realPath);
   }
-  return await File(realPath).exists() || await isICloudPlaceholder(realPath);
+  return File(realPath).exists();
 }
 
 /// Bounded, tri-state checks for destructive library cleanup. Unknown results
@@ -354,9 +336,6 @@ Future<Map<String, bool?>> fileExistenceByPath(List<String> paths) async {
         try {
           final stat = await File(path).stat();
           if (stat.type != FileSystemEntityType.notFound) {
-            results[path] = true;
-          } else if (await isICloudPlaceholder(path)) {
-            // Evicted by iCloud Drive, not deleted: keep the library row.
             results[path] = true;
           } else {
             // Dart's stat also returns notFound for permission errors. Opening
@@ -439,7 +418,6 @@ Future<FileAccessStat?> fileStat(String? path) async {
 
   final stat = await FileStat.stat(realPath);
   if (stat.type == FileSystemEntityType.notFound) {
-    if (await isICloudPlaceholder(realPath)) return const FileAccessStat();
     // Dart stat hides every OS error behind notFound. A metadata-only lookup
     // exposes the errno without opening or copying audio on the normal path.
     try {
