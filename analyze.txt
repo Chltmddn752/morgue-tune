@@ -1,0 +1,6 @@
+run 8 0929d79525fc0289b3907c3e2297829c96015b9d
+Analyzing lib...                                                
+
+   info • Use the null-aware marker '?' rather than a null check via an 'if'. Try using '?' • lib/screens/settings/library_settings_page_widgets.dart:146:11 • use_null_aware_elements
+
+1 issue found. (ran in 34.6s)
