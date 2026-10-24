@@ -283,11 +283,25 @@ impl Backend {
         Ok(count)
     }
 
+    #[cfg(test)]
     fn collect_library_files(
         &self,
         folder: &str,
         check: Check<'_>,
     ) -> Result<Vec<AudioFile>, String> {
+        self.collect_library_files_with_cloud(folder, check)
+            .map(|(files, _)| files)
+    }
+
+    /// Walks `folder`. Besides the audio files on disk it returns the paths of
+    /// tracks that exist only in the cloud: iCloud Drive replaces a file it has
+    /// evicted with a hidden `.name.ext.icloud` placeholder. Those tracks are
+    /// still part of the library, so they must not be reported as deleted.
+    fn collect_library_files_with_cloud(
+        &self,
+        folder: &str,
+        check: Check<'_>,
+    ) -> Result<(Vec<AudioFile>, BTreeSet<String>), String> {
         let files = self.environment().native_files()?;
         // Each entry records whether its parent directory was already
         // validated. Children then need one lstat of their own name instead of
@@ -295,6 +309,7 @@ impl Backend {
         // cards, USB drives and network mounts each of those is a round trip.
         let mut pending = vec![(folder.to_owned(), false)];
         let mut collected = Vec::new();
+        let mut cloud_only = BTreeSet::new();
         while let Some((path, parent_validated)) = pending.pop() {
             check()?;
             let input = files.resolve_legacy(&path)?;
@@ -317,6 +332,18 @@ impl Backend {
                     .entries()
                     .map_err(|error| format!("walk library path {path}: {error}"))?;
                 for (name, directory) in entries.into_iter().rev() {
+                    if !directory
+                        && let Some(real) = icloud_placeholder_target(&name)
+                    {
+                        if supported(&real) && !staging(&real) {
+                            cloud_only.insert(
+                                crate::files::clean(&Path::new(&path).join(real))
+                                    .to_string_lossy()
+                                    .into_owned(),
+                            );
+                        }
+                        continue;
+                    }
                     if !directory && (!supported(&name) || staging(&name)) {
                         continue;
                     }
@@ -335,7 +362,7 @@ impl Backend {
                 });
             }
         }
-        Ok(collected)
+        Ok((collected, cloud_only))
     }
 
     fn scan_library(
@@ -400,7 +427,7 @@ impl Backend {
                 Err(TryLockError::Poisoned(_)) => return Err("library scan owner poisoned".into()),
             }
         };
-        let current = self.collect_library_files(folder, &check)?;
+        let (current, cloud_only) = self.collect_library_files_with_cloud(folder, &check)?;
         let total = current.len();
         run.progress.lock().expect("scan progress lock").total_files = total;
         let paths: BTreeSet<_> = current.iter().map(|file| file.path.as_str()).collect();
@@ -412,7 +439,8 @@ impl Backend {
                 if let Some(base) = base {
                     cue_times.entry(base).or_insert(*time);
                 }
-                if !paths.contains(base.unwrap_or(path)) {
+                let key = base.unwrap_or(path);
+                if !paths.contains(key) && !cloud_only.contains(key) {
                     deleted.push(path.clone());
                 }
             }
@@ -596,6 +624,13 @@ impl Backend {
     }
 }
 
+/// `.Song.flac.icloud` -> `Song.flac`. iCloud Drive leaves this hidden file in
+/// place of a track it has evicted from the device.
+fn icloud_placeholder_target(name: &str) -> Option<String> {
+    let inner = name.strip_prefix('.')?.strip_suffix(".icloud")?;
+    (!inner.is_empty()).then(|| inner.to_owned())
+}
+
 fn cue_base(path: &str) -> Option<&str> {
     path.rfind("#track")
         .filter(|index| *index > 0)
@@ -674,6 +709,39 @@ mod tests {
 
     fn walk(backend: &Backend, folder: &Path) -> Result<Vec<AudioFile>, String> {
         backend.collect_library_files(&folder.to_string_lossy(), &|| Ok(()))
+    }
+
+    #[test]
+    fn icloud_placeholders_are_cloud_only_tracks_not_files() {
+        assert_eq!(
+            icloud_placeholder_target(".Song.flac.icloud").as_deref(),
+            Some("Song.flac")
+        );
+        assert_eq!(icloud_placeholder_target("Song.flac"), None);
+        assert_eq!(icloud_placeholder_target(".icloud"), None);
+        assert_eq!(icloud_placeholder_target("..icloud"), None);
+
+        let root = tempfile::tempdir().unwrap();
+        let library = fs::canonicalize(root.path()).unwrap().join("library");
+        fs::create_dir_all(library.join("A")).unwrap();
+        fs::write(library.join("A/here.flac"), b"flac").unwrap();
+        fs::write(library.join("A/.away.flac.icloud"), b"stub").unwrap();
+        fs::write(library.join("A/.notes.txt.icloud"), b"stub").unwrap();
+        fs::write(library.join("A/.gone.partial.flac.icloud"), b"stub").unwrap();
+        let backend = backend(root.path(), &library);
+
+        let (files, cloud) = backend
+            .collect_library_files_with_cloud(&library.to_string_lossy(), &|| Ok(()))
+            .unwrap();
+
+        assert_eq!(
+            files.iter().map(|file| file.path.clone()).collect::<Vec<_>>(),
+            vec![library.join("A/here.flac").to_string_lossy().into_owned()]
+        );
+        assert_eq!(
+            cloud.into_iter().collect::<Vec<_>>(),
+            vec![library.join("A/away.flac").to_string_lossy().into_owned()]
+        );
     }
 
     #[test]

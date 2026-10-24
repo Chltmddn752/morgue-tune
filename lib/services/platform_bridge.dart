@@ -2671,6 +2671,36 @@ class PlatformBridge {
     }
   }
 
+  /// iOS: before scanning a folder from Files, downloads the tracks that
+  /// iCloud Drive or Google Drive still holds only in the cloud and that the
+  /// app has not seen yet, so the scanner can read their tags. Tracks that were
+  /// seen before stay in the cloud. Returns how many were downloaded.
+  static Future<int> prepareIosCloudFolder(String folderPath) async {
+    try {
+      final result = await _channel.invokeMethod('prepareIosCloudFolder', {
+        'folder_path': folderPath,
+      });
+      return result is int ? result : 0;
+    } catch (e) {
+      _log.w('Failed to prepare cloud folder: $e');
+      return 0;
+    }
+  }
+
+  /// iOS: waits until a track from iCloud Drive or Google Drive is on the
+  /// device. Returns immediately for files that are already local.
+  static Future<bool> ensureIosFileDownloaded(String filePath) async {
+    try {
+      final result = await _channel.invokeMethod('ensureIosFileDownloaded', {
+        'file_path': filePath,
+      });
+      return result == true;
+    } catch (e) {
+      _log.w('Failed to download cloud file: $e');
+      return false;
+    }
+  }
+
   static Future<Map<String, dynamic>?> readAudioMetadata(
     String filePath,
   ) async {

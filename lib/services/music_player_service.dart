@@ -1370,6 +1370,12 @@ class MusicPlayerHandler extends BaseAudioHandler
     if (media.isNetwork) {
       await _player.setNetworkSource(path);
     } else {
+      // A track kept in iCloud Drive or Google Drive may not be on the device
+      // yet; wait for it instead of failing to open it.
+      if (_dependencies.isIOS) {
+        await PlatformBridge.ensureIosFileDownloaded(path);
+        if (!_isCurrentPlayRequest(generation, media)) return;
+      }
       await _player.setSource(
         DeviceFileSource(path),
         preferBitPerfect: _settings.usbBitPerfect,

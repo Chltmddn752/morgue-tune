@@ -205,6 +205,14 @@ enum ReleaseMode: String {
           url: parsedUrl, options: ["AVURLAssetOutOfBandMIMETypeKey": unwrappedMimeType])
         playerItem = AVPlayerItem(asset: asset)
       }
+    } else if isLocal && parsedUrl.pathExtension.lowercased() == "mp3" {
+      // Variable-bitrate MP3 needs precise timing, otherwise a seek lands 2-3
+      // seconds off the sound (and synced lyrics drift with it). FLAC, M4A and
+      // WAV are accurate already, and scanning a large file up front would slow
+      // down starting and skipping tracks, so only MP3 pays for it.
+      let asset = AVURLAsset(
+        url: parsedUrl, options: [AVURLAssetPreferPreciseDurationAndTimingKey: true])
+      playerItem = AVPlayerItem(asset: asset)
     } else {
       playerItem = AVPlayerItem(url: parsedUrl)
     }
